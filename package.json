@@ -1,0 +1,22 @@
+{
+  "name": "transform-3d",
+  "version": "0.0.1",
+  "description": "A custom component for 3d transform operations and interpolations",
+  "main": "./Source/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kentaromiura/transform-3d.git"
+  },
+  "author": "Cristian Carlesso <kentaromiura@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kentaromiura/transform-3d/issues"
+  },
+  "homepage": "https://github.com/kentaromiura/transform-3d",
+  "dependencies": {
+    "transform3d": "*"
+  },
+  "devDependencies": {
+    "wrapup":"*"
+  }
+}
