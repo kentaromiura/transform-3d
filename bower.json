@@ -1,0 +1,21 @@
+{
+  "name": "transform-3d",
+  "main": "Output/transform-3d.js",
+  "version": "0.0.1",
+  "homepage": "https://github.com/kentaromiura/transform-3d",
+  "authors": [
+    "kentaromiura <kentaromiura@gmail.com>"
+  ],
+  "description": "A custom component for 3d transform operations and interpolations",
+  "keywords": [
+    "web-components"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
