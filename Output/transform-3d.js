@@ -22,7 +22,7 @@
         module.exports = document.registerElement('transform-3d', { prototype: Transform3dProto });
     },
     '1': function (require, module, exports, global) {
-        var transform3d = require('2'), transform = require('3');
+        var transform3d = require('2'), transform = require('3'), operations = require('4');
         module.exports = function applyTransforms() {
             var properties = [
                     'rotate',
@@ -40,7 +40,13 @@
                     'scaleX',
                     'scaleY',
                     'scaleZ'
-                ], transformation = new transform3d(), i, max, property;
+                ], transformation, i, max, property;
+            if (!this._transform3d) {
+                this._transform3d = new transform3d();
+                this._identity = this._transform3d.compose();
+            }
+            transformation = this._transform3d;
+            transformation.operations = [new operations.Matrix(this._identity)];
             for (i = 0, max = properties.length; i < max; i++) {
                 property = properties[i];
                 if (this.hasAttribute(property))
@@ -51,7 +57,7 @@
     },
     '2': function (require, module, exports, global) {
         'use strict';
-        module.exports = require('4');
+        module.exports = require('5');
     },
     '3': function (require, module, exports, global) {
         module.exports = function () {
@@ -73,413 +79,10 @@
     },
     '4': function (require, module, exports, global) {
         'use strict';
-        var prime = require('5');
-        var Matrix3d = require('6');
-        var Vector3 = require('7');
-        var Vector4 = require('8');
-        var operations = require('9');
-        var slice_ = Array.prototype.slice;
-        var Transform3d = prime({
-                constructor: function Transform3d(operations) {
-                    this.operations = operations || [];
-                },
-                append: function (operation) {
-                    this.operations.push(operation);
-                    return this;
-                },
-                isIdentity: function () {
-                    var operations = this.operations;
-                    for (var i = 0; i < operations.length; i++) {
-                        if (!operations[i].isIdentity())
-                            return false;
-                    }
-                    return true;
-                },
-                matrix3d: function () {
-                    return this.append(new operations.Matrix(new Matrix3d(arguments)));
-                },
-                matrix: function (a, b, c, d, e, f) {
-                    return this.matrix3d(a, b, c, d, e, f);
-                },
-                translate3d: function (x, y, z) {
-                    return this.append(new operations.Translate(new Vector3(x, y, z)));
-                },
-                translate: function (x, y) {
-                    if (y == null)
-                        y = 0;
-                    return this.translate3d(x, y, 0);
-                },
-                translateX: function (x) {
-                    return this.translate(x, 0);
-                },
-                translateY: function (y) {
-                    return this.translate(0, y);
-                },
-                translateZ: function (z) {
-                    return this.translate3d(0, 0, z);
-                },
-                scale3d: function (x, y, z) {
-                    return this.append(new operations.Scale(new Vector3(x, y, z)));
-                },
-                scale: function (x, y) {
-                    if (y == null)
-                        y = x;
-                    return this.scale3d(x, y, 1);
-                },
-                scaleX: function (x) {
-                    return this.scale(x, 1);
-                },
-                scaleY: function (y) {
-                    return this.scale(1, y);
-                },
-                scaleZ: function (z) {
-                    return this.scale3d(1, 1, z);
-                },
-                rotate3d: function (x, y, z, angle) {
-                    return this.append(new operations.Rotate(new Vector4(x, y, z, angle)));
-                },
-                rotate: function (angle) {
-                    return this.rotate3d(0, 0, 1, angle);
-                },
-                rotateX: function (angle) {
-                    return this.rotate3d(1, 0, 0, angle);
-                },
-                rotateY: function (angle) {
-                    return this.rotate3d(0, 1, 0, angle);
-                },
-                rotateZ: function (angle) {
-                    return this.rotate3d(0, 0, 1, angle);
-                },
-                skew: function (x, y) {
-                    if (y == null)
-                        y = 0;
-                    return this.append(new operations.Skew([
-                        x,
-                        y
-                    ]));
-                },
-                skewX: function (x) {
-                    return this.skew(x, 0);
-                },
-                skewY: function (y) {
-                    return this.skew(0, y);
-                },
-                perspective: function (len) {
-                    return this.append(new operations.Perspective(len));
-                },
-                interpolation: function (transform) {
-                    return new TransformInterpolation(this, transform);
-                },
-                compose: function () {
-                    var matrix = new Matrix3d();
-                    var operations = this.operations;
-                    for (var i = 0; i < operations.length; i++) {
-                        matrix = matrix.concat(operations[i].compose());
-                    }
-                    return matrix;
-                },
-                toString: function () {
-                    var string = [];
-                    var operations = this.operations;
-                    for (var i = 0; i < operations.length; i++) {
-                        string.push(operations[i].toString());
-                    }
-                    return string.join(' ');
-                }
-            });
-        var TransformInterpolation = prime({
-                constructor: function TransformInterpolation(from, to) {
-                    var operations1 = slice_.call(from.operations);
-                    var operations2 = slice_.call(to.operations);
-                    var length1 = operations1.length, length2 = operations2.length;
-                    var operation1, operation2, i, interpolateTransform = true;
-                    if (!length1 || from.isIdentity()) {
-                        operations1 = [];
-                        for (i = 0; i < length2; i++)
-                            operations1.push(new operations[operations2[i].type]());
-                        length1 = operations1.length;
-                    } else if (!length2 || to.isIdentity()) {
-                        operations2 = [];
-                        for (i = 0; i < length1; i++)
-                            operations2.push(new operations[operations1[i].type]());
-                        length2 = operations2.length;
-                    } else if (length1 === length2) {
-                        for (i = 0; i < length1; i++) {
-                            operation1 = operations1[i];
-                            operation2 = operations2[i];
-                            var type1 = operation1.type;
-                            var type2 = operation2.type;
-                            if (type1 !== type2) {
-                                if (operation1.isIdentity()) {
-                                    operations1.splice(i, 1, new operations[type2]());
-                                } else if (operation2.isIdentity()) {
-                                    operations1.splice(i, 1, new operations[type1]());
-                                } else {
-                                    interpolateTransform = false;
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        interpolateTransform = false;
-                    }
-                    if (interpolateTransform) {
-                        this.from = operations1;
-                        this.to = operations2;
-                        this.length = length1;
-                    } else {
-                        this.from = [new operations.Matrix(from.compose())];
-                        this.to = [new operations.Matrix(to.compose())];
-                        this.length = 1;
-                    }
-                },
-                step: function (delta) {
-                    if (delta === 0)
-                        return new Transform3d(this.from);
-                    if (delta === 1)
-                        return new Transform3d(this.to);
-                    var interpolated = new Transform3d();
-                    for (var i = 0; i < this.length; i++) {
-                        var from = this.from[i];
-                        var to = this.to[i];
-                        var operation = from.equals(to) ? from : from.interpolate(to, delta);
-                        interpolated.append(operation);
-                    }
-                    return interpolated;
-                }
-            });
-        Transform3d.Interpolation = TransformInterpolation;
-        module.exports = Transform3d;
-    },
-    '5': function (require, module, exports, global) {
-        'use strict';
-        var hasOwn = require('a'), mixIn = require('b'), create = require('c'), kindOf = require('d');
-        var hasDescriptors = true;
-        try {
-            Object.defineProperty({}, '~', {});
-            Object.getOwnPropertyDescriptor({}, '~');
-        } catch (e) {
-            hasDescriptors = false;
-        }
-        var hasEnumBug = !{ valueOf: 0 }.propertyIsEnumerable('valueOf'), buggy = [
-                'toString',
-                'valueOf'
-            ];
-        var verbs = /^constructor|inherits|mixin$/;
-        var implement = function (proto) {
-            var prototype = this.prototype;
-            for (var key in proto) {
-                if (key.match(verbs))
-                    continue;
-                if (hasDescriptors) {
-                    var descriptor = Object.getOwnPropertyDescriptor(proto, key);
-                    if (descriptor) {
-                        Object.defineProperty(prototype, key, descriptor);
-                        continue;
-                    }
-                }
-                prototype[key] = proto[key];
-            }
-            if (hasEnumBug)
-                for (var i = 0; key = buggy[i]; i++) {
-                    var value = proto[key];
-                    if (value !== Object.prototype[key])
-                        prototype[key] = value;
-                }
-            return this;
-        };
-        var prime = function (proto) {
-            if (kindOf(proto) === 'Function')
-                proto = { constructor: proto };
-            var superprime = proto.inherits;
-            var constructor = hasOwn(proto, 'constructor') ? proto.constructor : superprime ? function () {
-                    return superprime.apply(this, arguments);
-                } : function () {
-                };
-            if (superprime) {
-                mixIn(constructor, superprime);
-                var superproto = superprime.prototype;
-                var cproto = constructor.prototype = create(superproto);
-                constructor.parent = superproto;
-                cproto.constructor = constructor;
-            }
-            if (!constructor.implement)
-                constructor.implement = implement;
-            var mixins = proto.mixin;
-            if (mixins) {
-                if (kindOf(mixins) !== 'Array')
-                    mixins = [mixins];
-                for (var i = 0; i < mixins.length; i++)
-                    constructor.implement(create(mixins[i].prototype));
-            }
-            return constructor.implement(proto);
-        };
-        module.exports = prime;
-    },
-    '6': function (require, module, exports, global) {
-        'use strict';
-        module.exports = require('e');
-    },
-    '7': function (require, module, exports, global) {
-        'use strict';
-        var prime = require('5');
-        var Vector3 = prime({
-                constructor: function Vector3(x, y, z) {
-                    this[0] = x || 0;
-                    this[1] = y || 0;
-                    this[2] = z || 0;
-                },
-                clone: function () {
-                    return new Vector3(this[0], this[1], this[2]);
-                },
-                get x() {
-                    return this[0];
-                },
-                get y() {
-                    return this[1];
-                },
-                get z() {
-                    return this[2];
-                },
-                equals: function (v3) {
-                    return this[0] === v3[0] && this[1] === v3[1] && this[2] === v3[2];
-                },
-                length: function () {
-                    return Math.sqrt(this[0] * this[0] + this[1] * this[1] + this[2] * this[2]);
-                },
-                normalize: function () {
-                    var length = this.length();
-                    if (length === 0)
-                        return new Vector3();
-                    return new Vector3(this[0] / length, this[1] / length, this[2] / length);
-                },
-                dot: function (v3) {
-                    return this[0] * v3[0] + this[1] * v3[1] + this[2] * v3[2];
-                },
-                cross: function (v3) {
-                    var x = this[0], y = this[1], z = this[2];
-                    return new Vector3(y * v3[2] - z * v3[1], z * v3[0] - x * v3[2], x * v3[1] - y * v3[0]);
-                },
-                lerp: function (v3, delta) {
-                    var scale1 = delta;
-                    var scale2 = 1 - delta;
-                    return v3.combine(this, scale1, scale2);
-                },
-                combine: function (v3, scale1, scale2) {
-                    var result = new Vector3();
-                    for (var i = 0; i < 3; i++)
-                        result[i] = this[i] * scale1 + v3[i] * scale2;
-                    return result;
-                }
-            });
-        module.exports = Vector3;
-    },
-    '8': function (require, module, exports, global) {
-        'use strict';
-        var prime = require('5');
-        var degToRad = function (degrees) {
-            return degrees * Math.PI / 180;
-        };
-        var radToDeg = function (radians) {
-            return radians * 180 / Math.PI;
-        };
-        var Vector4 = prime({
-                constructor: function Vector4(x, y, z, w) {
-                    this[0] = x || 0;
-                    this[1] = y || 0;
-                    this[2] = z || 0;
-                    this[3] = w || 0;
-                },
-                clone: function () {
-                    return new Vector4(this[0], this[1], this[2], this[3]);
-                },
-                get x() {
-                    return this[0];
-                },
-                get y() {
-                    return this[1];
-                },
-                get z() {
-                    return this[2];
-                },
-                get w() {
-                    return this[3];
-                },
-                equals: function (v3) {
-                    return this[0] === v3[0] && this[1] === v3[1] && this[2] === v3[2] && this[3] === v3[3];
-                },
-                length: function () {
-                    return Math.sqrt(this[0] * this[0] + this[1] * this[1] + this[2] * this[2] + this[3] * this[3]);
-                },
-                dot: function (v4) {
-                    return this[0] * v4[0] + this[1] * v4[1] + this[2] * v4[2] + this[3] * v4[3];
-                },
-                normalize: function () {
-                    var length = this.length();
-                    if (length === 0)
-                        return new Vector4(0, 0, 0, 1);
-                    var inv = 1 / length;
-                    return new Vector4(this[0] * inv, this[1] * inv, this[2] * inv, this[3] * inv);
-                },
-                quaternionToAngle: function (deg) {
-                    var v4 = this;
-                    if (v4[3] > 1)
-                        v4 = v4.normalize();
-                    var w = 2 * Math.acos(v4[3]);
-                    var s = Math.sqrt(1 - v4[3] * v4[3]);
-                    if (s < 0.0001) {
-                        return new Vector4(v4[0], v4[1], v4[2], w);
-                    } else {
-                        return new Vector4(v4[0] / s, v4[1] / s, v4[2] / s, deg ? radToDeg(w) : w);
-                    }
-                },
-                angleToQuaternion: function (deg) {
-                    var angle = deg ? degToRad(this[3]) : this[3];
-                    var half = angle / 2, s = Math.sin(half);
-                    return new Vector4(this[0] * s, this[1] * s, this[2] * s, Math.cos(half));
-                },
-                combine: function (v4, scale1, scale2) {
-                    var result = new Vector4();
-                    for (var i = 0; i < 4; i++)
-                        result[i] = this[i] * scale1 + v4[i] * scale2;
-                    return result;
-                },
-                lerp: function (v4, delta) {
-                    var scale1 = delta;
-                    var scale2 = 1 - delta;
-                    return v4.combine(this, scale1, scale2);
-                },
-                slerp: function (v4q, delta) {
-                    var interpolated = new Vector4();
-                    var product = this.dot(v4q);
-                    product = Math.min(Math.max(product, -1), 1);
-                    var scale1 = 1;
-                    if (product < 0) {
-                        product = -product;
-                        scale1 = -1;
-                    }
-                    var epsilon = 0.00001;
-                    if (Math.abs(product - 1) < epsilon) {
-                        for (var i = 0; i < 4; ++i)
-                            interpolated[i] = this[i];
-                        return interpolated;
-                    }
-                    var denom = Math.sqrt(1 - product * product);
-                    var theta = Math.acos(product);
-                    var w = Math.sin(delta * theta) * (1 / denom);
-                    scale1 *= Math.cos(delta * theta) - product * w;
-                    var scale2 = w;
-                    return this.combine(v4q, scale1, scale2);
-                }
-            });
-        module.exports = Vector4;
-    },
-    '9': function (require, module, exports, global) {
-        'use strict';
-        var prime = require('5');
-        var Matrix3d = require('6');
-        var Vector3 = require('7');
-        var Vector4 = require('8');
+        var prime = require('6');
+        var Matrix3d = require('7');
+        var Vector3 = require('8');
+        var Vector4 = require('9');
         var epsilon = 0.0001;
         var tanDeg = function (degrees) {
             var radians = degrees * Math.PI / 180;
@@ -665,6 +268,409 @@
                 }
             });
     },
+    '5': function (require, module, exports, global) {
+        'use strict';
+        var prime = require('6');
+        var Matrix3d = require('7');
+        var Vector3 = require('8');
+        var Vector4 = require('9');
+        var operations = require('4');
+        var slice_ = Array.prototype.slice;
+        var Transform3d = prime({
+                constructor: function Transform3d(operations) {
+                    this.operations = operations || [];
+                },
+                append: function (operation) {
+                    this.operations.push(operation);
+                    return this;
+                },
+                isIdentity: function () {
+                    var operations = this.operations;
+                    for (var i = 0; i < operations.length; i++) {
+                        if (!operations[i].isIdentity())
+                            return false;
+                    }
+                    return true;
+                },
+                matrix3d: function () {
+                    return this.append(new operations.Matrix(new Matrix3d(arguments)));
+                },
+                matrix: function (a, b, c, d, e, f) {
+                    return this.matrix3d(a, b, c, d, e, f);
+                },
+                translate3d: function (x, y, z) {
+                    return this.append(new operations.Translate(new Vector3(x, y, z)));
+                },
+                translate: function (x, y) {
+                    if (y == null)
+                        y = 0;
+                    return this.translate3d(x, y, 0);
+                },
+                translateX: function (x) {
+                    return this.translate(x, 0);
+                },
+                translateY: function (y) {
+                    return this.translate(0, y);
+                },
+                translateZ: function (z) {
+                    return this.translate3d(0, 0, z);
+                },
+                scale3d: function (x, y, z) {
+                    return this.append(new operations.Scale(new Vector3(x, y, z)));
+                },
+                scale: function (x, y) {
+                    if (y == null)
+                        y = x;
+                    return this.scale3d(x, y, 1);
+                },
+                scaleX: function (x) {
+                    return this.scale(x, 1);
+                },
+                scaleY: function (y) {
+                    return this.scale(1, y);
+                },
+                scaleZ: function (z) {
+                    return this.scale3d(1, 1, z);
+                },
+                rotate3d: function (x, y, z, angle) {
+                    return this.append(new operations.Rotate(new Vector4(x, y, z, angle)));
+                },
+                rotate: function (angle) {
+                    return this.rotate3d(0, 0, 1, angle);
+                },
+                rotateX: function (angle) {
+                    return this.rotate3d(1, 0, 0, angle);
+                },
+                rotateY: function (angle) {
+                    return this.rotate3d(0, 1, 0, angle);
+                },
+                rotateZ: function (angle) {
+                    return this.rotate3d(0, 0, 1, angle);
+                },
+                skew: function (x, y) {
+                    if (y == null)
+                        y = 0;
+                    return this.append(new operations.Skew([
+                        x,
+                        y
+                    ]));
+                },
+                skewX: function (x) {
+                    return this.skew(x, 0);
+                },
+                skewY: function (y) {
+                    return this.skew(0, y);
+                },
+                perspective: function (len) {
+                    return this.append(new operations.Perspective(len));
+                },
+                interpolation: function (transform) {
+                    return new TransformInterpolation(this, transform);
+                },
+                compose: function () {
+                    var matrix = new Matrix3d();
+                    var operations = this.operations;
+                    for (var i = 0; i < operations.length; i++) {
+                        matrix = matrix.concat(operations[i].compose());
+                    }
+                    return matrix;
+                },
+                toString: function () {
+                    var string = [];
+                    var operations = this.operations;
+                    for (var i = 0; i < operations.length; i++) {
+                        string.push(operations[i].toString());
+                    }
+                    return string.join(' ');
+                }
+            });
+        var TransformInterpolation = prime({
+                constructor: function TransformInterpolation(from, to) {
+                    var operations1 = slice_.call(from.operations);
+                    var operations2 = slice_.call(to.operations);
+                    var length1 = operations1.length, length2 = operations2.length;
+                    var operation1, operation2, i, interpolateTransform = true;
+                    if (!length1 || from.isIdentity()) {
+                        operations1 = [];
+                        for (i = 0; i < length2; i++)
+                            operations1.push(new operations[operations2[i].type]());
+                        length1 = operations1.length;
+                    } else if (!length2 || to.isIdentity()) {
+                        operations2 = [];
+                        for (i = 0; i < length1; i++)
+                            operations2.push(new operations[operations1[i].type]());
+                        length2 = operations2.length;
+                    } else if (length1 === length2) {
+                        for (i = 0; i < length1; i++) {
+                            operation1 = operations1[i];
+                            operation2 = operations2[i];
+                            var type1 = operation1.type;
+                            var type2 = operation2.type;
+                            if (type1 !== type2) {
+                                if (operation1.isIdentity()) {
+                                    operations1.splice(i, 1, new operations[type2]());
+                                } else if (operation2.isIdentity()) {
+                                    operations1.splice(i, 1, new operations[type1]());
+                                } else {
+                                    interpolateTransform = false;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        interpolateTransform = false;
+                    }
+                    if (interpolateTransform) {
+                        this.from = operations1;
+                        this.to = operations2;
+                        this.length = length1;
+                    } else {
+                        this.from = [new operations.Matrix(from.compose())];
+                        this.to = [new operations.Matrix(to.compose())];
+                        this.length = 1;
+                    }
+                },
+                step: function (delta) {
+                    if (delta === 0)
+                        return new Transform3d(this.from);
+                    if (delta === 1)
+                        return new Transform3d(this.to);
+                    var interpolated = new Transform3d();
+                    for (var i = 0; i < this.length; i++) {
+                        var from = this.from[i];
+                        var to = this.to[i];
+                        var operation = from.equals(to) ? from : from.interpolate(to, delta);
+                        interpolated.append(operation);
+                    }
+                    return interpolated;
+                }
+            });
+        Transform3d.Interpolation = TransformInterpolation;
+        module.exports = Transform3d;
+    },
+    '6': function (require, module, exports, global) {
+        'use strict';
+        var hasOwn = require('a'), mixIn = require('b'), create = require('c'), kindOf = require('d');
+        var hasDescriptors = true;
+        try {
+            Object.defineProperty({}, '~', {});
+            Object.getOwnPropertyDescriptor({}, '~');
+        } catch (e) {
+            hasDescriptors = false;
+        }
+        var hasEnumBug = !{ valueOf: 0 }.propertyIsEnumerable('valueOf'), buggy = [
+                'toString',
+                'valueOf'
+            ];
+        var verbs = /^constructor|inherits|mixin$/;
+        var implement = function (proto) {
+            var prototype = this.prototype;
+            for (var key in proto) {
+                if (key.match(verbs))
+                    continue;
+                if (hasDescriptors) {
+                    var descriptor = Object.getOwnPropertyDescriptor(proto, key);
+                    if (descriptor) {
+                        Object.defineProperty(prototype, key, descriptor);
+                        continue;
+                    }
+                }
+                prototype[key] = proto[key];
+            }
+            if (hasEnumBug)
+                for (var i = 0; key = buggy[i]; i++) {
+                    var value = proto[key];
+                    if (value !== Object.prototype[key])
+                        prototype[key] = value;
+                }
+            return this;
+        };
+        var prime = function (proto) {
+            if (kindOf(proto) === 'Function')
+                proto = { constructor: proto };
+            var superprime = proto.inherits;
+            var constructor = hasOwn(proto, 'constructor') ? proto.constructor : superprime ? function () {
+                    return superprime.apply(this, arguments);
+                } : function () {
+                };
+            if (superprime) {
+                mixIn(constructor, superprime);
+                var superproto = superprime.prototype;
+                var cproto = constructor.prototype = create(superproto);
+                constructor.parent = superproto;
+                cproto.constructor = constructor;
+            }
+            if (!constructor.implement)
+                constructor.implement = implement;
+            var mixins = proto.mixin;
+            if (mixins) {
+                if (kindOf(mixins) !== 'Array')
+                    mixins = [mixins];
+                for (var i = 0; i < mixins.length; i++)
+                    constructor.implement(create(mixins[i].prototype));
+            }
+            return constructor.implement(proto);
+        };
+        module.exports = prime;
+    },
+    '7': function (require, module, exports, global) {
+        'use strict';
+        module.exports = require('e');
+    },
+    '8': function (require, module, exports, global) {
+        'use strict';
+        var prime = require('6');
+        var Vector3 = prime({
+                constructor: function Vector3(x, y, z) {
+                    this[0] = x || 0;
+                    this[1] = y || 0;
+                    this[2] = z || 0;
+                },
+                clone: function () {
+                    return new Vector3(this[0], this[1], this[2]);
+                },
+                get x() {
+                    return this[0];
+                },
+                get y() {
+                    return this[1];
+                },
+                get z() {
+                    return this[2];
+                },
+                equals: function (v3) {
+                    return this[0] === v3[0] && this[1] === v3[1] && this[2] === v3[2];
+                },
+                length: function () {
+                    return Math.sqrt(this[0] * this[0] + this[1] * this[1] + this[2] * this[2]);
+                },
+                normalize: function () {
+                    var length = this.length();
+                    if (length === 0)
+                        return new Vector3();
+                    return new Vector3(this[0] / length, this[1] / length, this[2] / length);
+                },
+                dot: function (v3) {
+                    return this[0] * v3[0] + this[1] * v3[1] + this[2] * v3[2];
+                },
+                cross: function (v3) {
+                    var x = this[0], y = this[1], z = this[2];
+                    return new Vector3(y * v3[2] - z * v3[1], z * v3[0] - x * v3[2], x * v3[1] - y * v3[0]);
+                },
+                lerp: function (v3, delta) {
+                    var scale1 = delta;
+                    var scale2 = 1 - delta;
+                    return v3.combine(this, scale1, scale2);
+                },
+                combine: function (v3, scale1, scale2) {
+                    var result = new Vector3();
+                    for (var i = 0; i < 3; i++)
+                        result[i] = this[i] * scale1 + v3[i] * scale2;
+                    return result;
+                }
+            });
+        module.exports = Vector3;
+    },
+    '9': function (require, module, exports, global) {
+        'use strict';
+        var prime = require('6');
+        var degToRad = function (degrees) {
+            return degrees * Math.PI / 180;
+        };
+        var radToDeg = function (radians) {
+            return radians * 180 / Math.PI;
+        };
+        var Vector4 = prime({
+                constructor: function Vector4(x, y, z, w) {
+                    this[0] = x || 0;
+                    this[1] = y || 0;
+                    this[2] = z || 0;
+                    this[3] = w || 0;
+                },
+                clone: function () {
+                    return new Vector4(this[0], this[1], this[2], this[3]);
+                },
+                get x() {
+                    return this[0];
+                },
+                get y() {
+                    return this[1];
+                },
+                get z() {
+                    return this[2];
+                },
+                get w() {
+                    return this[3];
+                },
+                equals: function (v3) {
+                    return this[0] === v3[0] && this[1] === v3[1] && this[2] === v3[2] && this[3] === v3[3];
+                },
+                length: function () {
+                    return Math.sqrt(this[0] * this[0] + this[1] * this[1] + this[2] * this[2] + this[3] * this[3]);
+                },
+                dot: function (v4) {
+                    return this[0] * v4[0] + this[1] * v4[1] + this[2] * v4[2] + this[3] * v4[3];
+                },
+                normalize: function () {
+                    var length = this.length();
+                    if (length === 0)
+                        return new Vector4(0, 0, 0, 1);
+                    var inv = 1 / length;
+                    return new Vector4(this[0] * inv, this[1] * inv, this[2] * inv, this[3] * inv);
+                },
+                quaternionToAngle: function (deg) {
+                    var v4 = this;
+                    if (v4[3] > 1)
+                        v4 = v4.normalize();
+                    var w = 2 * Math.acos(v4[3]);
+                    var s = Math.sqrt(1 - v4[3] * v4[3]);
+                    if (s < 0.0001) {
+                        return new Vector4(v4[0], v4[1], v4[2], w);
+                    } else {
+                        return new Vector4(v4[0] / s, v4[1] / s, v4[2] / s, deg ? radToDeg(w) : w);
+                    }
+                },
+                angleToQuaternion: function (deg) {
+                    var angle = deg ? degToRad(this[3]) : this[3];
+                    var half = angle / 2, s = Math.sin(half);
+                    return new Vector4(this[0] * s, this[1] * s, this[2] * s, Math.cos(half));
+                },
+                combine: function (v4, scale1, scale2) {
+                    var result = new Vector4();
+                    for (var i = 0; i < 4; i++)
+                        result[i] = this[i] * scale1 + v4[i] * scale2;
+                    return result;
+                },
+                lerp: function (v4, delta) {
+                    var scale1 = delta;
+                    var scale2 = 1 - delta;
+                    return v4.combine(this, scale1, scale2);
+                },
+                slerp: function (v4q, delta) {
+                    var interpolated = new Vector4();
+                    var product = this.dot(v4q);
+                    product = Math.min(Math.max(product, -1), 1);
+                    var scale1 = 1;
+                    if (product < 0) {
+                        product = -product;
+                        scale1 = -1;
+                    }
+                    var epsilon = 0.00001;
+                    if (Math.abs(product - 1) < epsilon) {
+                        for (var i = 0; i < 4; ++i)
+                            interpolated[i] = this[i];
+                        return interpolated;
+                    }
+                    var denom = Math.sqrt(1 - product * product);
+                    var theta = Math.acos(product);
+                    var w = Math.sin(delta * theta) * (1 / denom);
+                    scale1 *= Math.cos(delta * theta) - product * w;
+                    var scale2 = w;
+                    return this.combine(v4q, scale1, scale2);
+                }
+            });
+        module.exports = Vector4;
+    },
     'a': function (require, module, exports, global) {
         function hasOwn(obj, prop) {
             return Object.prototype.hasOwnProperty.call(obj, prop);
@@ -713,9 +719,9 @@
     },
     'e': function (require, module, exports, global) {
         'use strict';
-        var prime = require('5');
-        var Vector3 = require('7');
-        var Vector4 = require('8');
+        var prime = require('6');
+        var Vector3 = require('8');
+        var Vector4 = require('9');
         var stringify = function (array, places) {
             if (places == null || places > 20)
                 places = 20;
