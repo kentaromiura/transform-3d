@@ -4,20 +4,20 @@
 			th{border:1px solid gray;}
 			#animation{margin-top:180px;}
 		</style>
-		<script src="libs/document.register.element.js"></script>
+		<script src="./libs/custom-element.js"></script>
 		<script src="./Output/transform-3d.js"></script>
 	</head>
 	<body>
 		<table><tr><th>original</th><th>rotate 15, translate x 45, translate y 150</th><th>rotate -15, translateX 45, translateY 150</th><th>rotateY 45, scale 1.5, translateY 80, translateX 90, rotate -30</th></tr>
-		<tr><td><img src="http://davidwalsh.name/wp-content/themes/punky/images/logo.png"></td>
+		<tr><td><img src="logo.png"></td>
 		<td><transform-3d translateX=45 translateY=150 rotate=15>
-		<img src="http://davidwalsh.name/wp-content/themes/punky/images/logo.png">
+		<img src="logo.png">
 		</transform-3d></td><td><transform-3d translateX=45 translateY=150 rotate=-15>
-		<img src="http://davidwalsh.name/wp-content/themes/punky/images/logo.png">
+		<img src="logo.png">
 		</transform-3d></td><td><transform-3d rotateY=45 scale=1.5 translateY=80 translateX=90 rotate=-30>
-		<img src="http://davidwalsh.name/wp-content/themes/punky/images/logo.png">
+		<img src="logo.png">
 		</transform-3d></td></table>
-		<transform-3d id=animation><img src="http://davidwalsh.name/wp-content/themes/punky/images/logo.png"></transform-3d>
+		<transform-3d id=animation><img src="logo.png"></transform-3d>
 <script>
 	var animation = document.getElementById('animation'),
 			z = 0;
